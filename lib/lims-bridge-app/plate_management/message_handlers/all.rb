@@ -5,3 +5,5 @@ require 'lims-bridge-app/plate_management/message_handlers/update_aliquots_handl
 require 'lims-bridge-app/plate_management/message_handlers/labellable_handler'
 require 'lims-bridge-app/plate_management/message_handlers/swap_samples_handler'
 require 'lims-bridge-app/plate_management/message_handlers/plate_delete_handler'
+require 'lims-bridge-app/plate_management/message_handlers/transfer_handler'
+require 'lims-bridge-app/plate_management/message_handlers/gel_image_handler'

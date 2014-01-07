@@ -78,7 +78,8 @@ CREATE TABLE "sample_metadata" (
   "subject" varchar(255) DEFAULT NULL,
   "treatment" varchar(255) DEFAULT NULL,
   "created_at" datetime DEFAULT NULL,
-  "updated_at" datetime DEFAULT NULL
+  "updated_at" datetime DEFAULT NULL,
+  "donor_id" varchar(255) DEFAULT NULL
 );
 CREATE TABLE "sample_registrars" (
   "id" INTEGER PRIMARY KEY,
@@ -157,7 +158,15 @@ CREATE TABLE "well_attributes" (
   "gender" varchar(255) DEFAULT NULL,
   "measured_volume" float DEFAULT NULL
 );
-
+CREATE TABLE "asset_links" (
+  "id" INTEGER PRIMARY KEY,
+  "ancestor_id" int(11) DEFAULT NULL,
+  "descendant_id" int(11) DEFAULT NULL,
+  "direct" tinyint(1) DEFAULT NULL,
+  "count" int(11) DEFAULT NULL,
+  "created_at" datetime NOT NULL,
+  "updated_at" datetime NOT NULL
+);
 
 INSERT INTO "maps" VALUES(1,'A1',96,1,0,0);
 INSERT INTO "maps" VALUES(2,'A2',96,2,1,8);
@@ -697,7 +706,8 @@ CREATE TABLE "location_associations" (
 CREATE TABLE "requests" (
   "id" INTEGER PRIMARY KEY,
   "asset_id" int(11) NOT NULL,
-  "initial_study_id" int(11) NOT NULL,
+  "initial_study_id" int(11) NULL,
+  "target_asset_id" int(11) NULL,
   "sti_type" varchar(255) NOT NULL,
   "state" varchar(255) NOT NULL,
   "request_type_id" int(11) DEFAULT NULL,

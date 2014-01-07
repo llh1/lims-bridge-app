@@ -23,17 +23,23 @@ module Lims::BridgeApp::PlateManagement
 
     it_behaves_like "routing message", "*.*.plate.create", MessageHandler::PlateHandler
     it_behaves_like "routing message", "*.*.plate.updateplate", MessageHandler::UpdateAliquotsHandler
+    it_behaves_like "routing message", "*.*.gel.create", MessageHandler::PlateHandler
+    it_behaves_like "routing message", "*.*.gel.updategel", MessageHandler::UpdateAliquotsHandler
+    it_behaves_like "routing message", "*.*.gelimage.create", MessageHandler::GelImageHandler
+    it_behaves_like "routing message", "*.*.updategelimagescore.updategelimagescore", MessageHandler::GelImageHandler
     it_behaves_like "routing message", "*.*.tuberack.create", MessageHandler::PlateHandler 
     it_behaves_like "routing message", "*.*.tuberack.updatetuberack", MessageHandler::UpdateAliquotsHandler 
     it_behaves_like "routing message", "*.*.tuberack.deletetuberack", MessageHandler::PlateDeleteHandler 
     it_behaves_like "routing message", "*.*.order.create", MessageHandler::OrderHandler 
     it_behaves_like "routing message", "*.*.order.updateorder", MessageHandler::OrderHandler 
-    it_behaves_like "routing message", "*.*.platetransfer.platetransfer", MessageHandler::UpdateAliquotsHandler 
-    it_behaves_like "routing message", "*.*.transferplatestoplates.transferplatestoplates", MessageHandler::UpdateAliquotsHandler 
-    it_behaves_like "routing message", "*.*.tuberacktransfer.tuberacktransfer", MessageHandler::UpdateAliquotsHandler 
+    it_behaves_like "routing message", "*.*.platetransfer.platetransfer", MessageHandler::TransferHandler 
+    it_behaves_like "routing message", "*.*.transferplatestoplates.transferplatestoplates", MessageHandler::TransferHandler 
+    it_behaves_like "routing message", "*.*.tuberacktransfer.tuberacktransfer", MessageHandler::TransferHandler 
     it_behaves_like "routing message", "*.*.tuberackmove.tuberackmove", MessageHandler::TubeRackMoveHandler 
     it_behaves_like "routing message", "*.*.labellable.create", MessageHandler::LabellableHandler 
     it_behaves_like "routing message", "*.*.bulkcreatelabellable.*", MessageHandler::LabellableHandler 
+    it_behaves_like "routing message", "*.*.udpatelabel.*", MessageHandler::LabellableHandler 
+    it_behaves_like "routing message", "*.*.bulkupdatelabel.*", MessageHandler::LabellableHandler 
     it_behaves_like "routing message", "*.*.swapsamples.*", MessageHandler::SwapSamplesHandler 
   end
 end

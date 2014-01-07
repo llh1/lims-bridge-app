@@ -1,7 +1,9 @@
 require 'lims-laboratory-app/laboratory/plate'
+require 'lims-laboratory-app/laboratory/gel'
 require 'lims-laboratory-app/laboratory/aliquot'
 require 'lims-laboratory-app/organization/order'
 require 'lims-laboratory-app/labels/labellable'
+require 'lims-quality-app/gel-image/gel_image'
 require 'lims-bridge-app/base_json_decoder'
 require 'json'
 
@@ -11,6 +13,27 @@ module Lims::BridgeApp
     # Lims Core Resource.
     module JsonDecoder
       include BaseJsonDecoder
+
+      module GelImageJsonDecoder
+        def self.call(json, options)
+          gi_hash = json["gel_image"]
+          gi = Lims::QualityApp::GelImage.new({
+            :gel_uuid => gi_hash["gel_uuid"],
+            :scores => gi_hash["scores"]
+          })
+
+          {:gel_image => gi, :date => options[:date]}
+        end
+      end
+
+
+      module UpdateGelImageScoreJsonDecoder
+        def self.call(json, options)
+          gel_image = json["update_gel_image_score"]["result"]
+          GelImageJsonDecoder.call(gel_image, options)
+        end
+      end
+
 
       module LabellableJsonDecoder
         def self.call(json, options)
@@ -43,6 +66,24 @@ module Lims::BridgeApp
       end
 
 
+      module UpdateLabelJsonDecoder
+        def self.call(json, options)
+          LabellableJsonDecoder.call(json["update_label"]["result"], options)
+        end
+      end
+
+
+      module BulkUpdateLabelJsonDecoder
+        def self.call(json, options)
+          labellables = []
+          json["bulk_update_label"]["result"]["labellables"].each do |labellable|
+            labellables << LabellableJsonDecoder.call({"labellable" => labellable}, options)
+          end
+          {:labellables => labellables}
+        end
+      end
+
+
       module PlateJsonDecoder
         # Create a Core Laboratory Plate from the json
         # @param [String] json
@@ -58,9 +99,11 @@ module Lims::BridgeApp
           plate_hash["wells"].each do |location, aliquots|
             unless aliquots.empty?
               aliquots.each do |aliquot|
+                out_of_bounds = aliquot["out_of_bounds"] ? aliquot["out_of_bounds"] : {}
                 plate[location] << Lims::LaboratoryApp::Laboratory::Aliquot.new({
                   :quantity => aliquot["quantity"],
-                  :type => aliquot["type"]
+                  :type => aliquot["type"],
+                  :out_of_bounds => out_of_bounds
                 })
               end
             end
@@ -85,11 +128,41 @@ module Lims::BridgeApp
               unless aliquots.empty?
                 aliquots.each do |aliquot|
                   uuids[location] ||= []
-                  uuids[location] << aliquot["sample"]["uuid"]
+                  uuids[location] << aliquot["sample"]["uuid"] if aliquot["sample"]
                 end
               end
             end
           end
+        end
+      end
+
+
+      module GelJsonDecoder
+        def self.call(json, options)
+          gel_hash = json["gel"]
+          gel = Lims::LaboratoryApp::Laboratory::Gel.new({
+            :number_of_rows => gel_hash["number_of_rows"],
+            :number_of_columns => gel_hash["number_of_columns"]
+          })
+          gel_hash["windows"].each do |location, aliquots|
+            unless aliquots.empty?
+              aliquots.each do |aliquot|
+                out_of_bounds = aliquot["out_of_bounds"] ? aliquot["out_of_bounds"] : {}
+                gel[location] << Lims::LaboratoryApp::Laboratory::Aliquot.new({
+                  :quantity => aliquot["quantity"],
+                  :type => aliquot["type"],
+                  :out_of_bounds => out_of_bounds
+                })
+              end
+            end
+          end
+
+          {
+            :plate => gel, 
+            :uuid => gel_hash["uuid"], 
+            :sample_uuids => PlateJsonDecoder.sample_uuids(gel_hash["windows"]),
+            :date => options[:date]
+          }
         end
       end
 
@@ -161,8 +234,23 @@ module Lims::BridgeApp
 
       module PlateTransferJsonDecoder
         def self.call(json, options)
-          transfer_h = json["plate_transfer"]
-          PlateJsonDecoder.call(transfer_h["result"], options)         
+          plates = []
+          transfer_map = [].tap do |t|
+            source_uuid = json["plate_transfer"]["source"]["plate"]["uuid"]
+            target_uuid = json["plate_transfer"]["target"]["plate"]["uuid"]
+            json["plate_transfer"]["transfer_map"].each do |source_location, target_location|
+              t << {
+                "source_uuid" => source_uuid, "source_location" => source_location, 
+                "target_uuid" => target_uuid, "target_location" => target_location
+              }
+            end
+          end
+
+          ["source", "target"].each do |key|
+            plates << PlateJsonDecoder.call(json["plate_transfer"][key], options)
+          end
+
+          {:plates => plates, :transfer_map => transfer_map}
         end
       end
 
@@ -170,21 +258,41 @@ module Lims::BridgeApp
       module TransferPlatesToPlatesJsonDecoder
         def self.call(json, options)
           plates = []
-          json["transfer_plates_to_plates"]["result"]["targets"].each do |target|
-            plates << case target.first
-            when "plate" then PlateJsonDecoder.call(target, options) 
-            when "tube_rack" then TubeRackJsonDecoder.call(target, options)
+          transfer_map = json["transfer_plates_to_plates"]["transfers"]
+          ["sources", "targets"].each do |key|
+            json["transfer_plates_to_plates"]["result"][key].each do |asset|
+              plates << case asset.keys.first
+              when "plate" then PlateJsonDecoder.call(asset, options) 
+              when "tube_rack" then TubeRackJsonDecoder.call(asset, options)
+              when "gel" then GelJsonDecoder.call(asset, options)
+              end
             end
           end
 
-          {:plates => plates}
+          {:plates => plates, :transfer_map => transfer_map}
         end
       end
 
 
       module TubeRackTransferJsonDecoder
         def self.call(json, options)
-          TubeRackJsonDecoder.call(json["tube_rack_transfer"]["result"], options) 
+          plates = []
+          transfer_map = [].tap do |t|
+            source_uuid = json["tube_rack_transfer"]["source"]["tube_rack"]["uuid"]
+            target_uuid = json["tube_rack_transfer"]["target"]["tube_rack"]["uuid"]
+            json["tube_rack_transfer"]["transfer_map"].each do |source_location, target_location|
+              t << {
+                "source_uuid" => source_uuid, "source_location" => source_location, 
+                "target_uuid" => target_uuid, "target_location" => target_location
+              }
+            end
+          end
+
+          ["source", "target"].each do |key|
+            plates << TubeRackJsonDecoder.call(json["tube_rack_transfer"][key], options)
+          end
+
+          {:plates => plates, :transfer_map => transfer_map}
         end
       end
 
